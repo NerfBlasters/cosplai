@@ -1,10 +1,29 @@
 import { Session } from './session.js';
-import { TerminalModel } from './terminalModel.js';
+import { TerminalModel, MAX_DIMENSION, MIN_DIMENSION } from './terminalModel.js';
 import { StateDetector } from './stateDetector.js';
 import { PromptQueue } from './promptQueue.js';
 import { getAdapter } from './adapters/index.js';
 
 const envKey = (name) => name.toUpperCase().replace(/-/g, '_');
+
+// Reject caller-supplied geometry outside the supported range instead of
+// silently clamping it. TerminalModel clamps unconditionally (that is the
+// root-cause fix); this boundary check exists so an API client learns its
+// request was wrong rather than getting a terminal that isn't the size it
+// asked for. Absent values are fine — they fall through to profile defaults.
+function assertGeometry(cols, rows) {
+  for (const [label, value] of [['cols', cols], ['rows', rows]]) {
+    if (value === undefined || value === null) continue;
+    const n = Number(value);
+    if (!Number.isFinite(n) || !Number.isInteger(n) || n < MIN_DIMENSION || n > MAX_DIMENSION) {
+      const err = new Error(
+        `${label} must be an integer between ${MIN_DIMENSION} and ${MAX_DIMENSION} (got ${JSON.stringify(value)})`,
+      );
+      err.code = 'INVALID_GEOMETRY';
+      throw err;
+    }
+  }
+}
 
 // Startup-dialog policy as a pure per-tail decision (spec "Profiles"), consulted
 // by the detector BEFORE it settles a turn (so an answered dialog never surfaces
@@ -40,6 +59,7 @@ export class SessionManager {
   constructor(config) { this._config = config; this._records = new Map(); }
   create({ profile, cwd, cols, rows } = {}) {
     const c = this._config;
+    assertGeometry(cols, rows);
     const name = profile || c.defaultProfile;
     const p = c.profiles[name];
     if (!p) {
@@ -72,24 +92,36 @@ export class SessionManager {
       err.validProfiles = Object.keys(c.profiles);
       throw err;
     }
+    // Construct the TerminalModel BEFORE spawning: it is the one step here that
+    // validates its inputs and can throw, and forking a child only to discard it
+    // is the bug this ordering prevents (CWE-404).
+    const terminalModel = new TerminalModel({ cols: cols || p.cols, rows: rows || p.rows, scrollback: c.scrollback });
     const session = new Session({
       command: p.command, args: [...p.args], cwd: cwd || p.cwd,
       env: process.env, envScrub: p.envScrub, envSet: p.envSet,
       cols: cols || p.cols, rows: rows || p.rows, ringBytes: c.ringBytes,
     });
-    const terminalModel = new TerminalModel({ cols: cols || p.cols, rows: rows || p.rows, scrollback: c.scrollback });
-    session.on('data', (d) => terminalModel.write(d));
-    const record = {
-      id: session.id, session, terminalModel, adapter,
-      queue: new PromptQueue(), createdAt: Date.now(),
-      profile: name, dialogPolicy: p.dialogPolicy,
-    };
-    // Build the dialog handler over the record, then hand it to the detector so
-    // an auto-answered dialog keeps the session busy rather than surfacing.
-    const dialogHandler = makeDialogHandler(record);
-    record.detector = new StateDetector({ session, terminalModel, adapter, quiescenceMs: p.quiescenceMs, dialogHandler });
-    this._records.set(session.id, record);
-    return record;
+    // Everything past this point owns a live PTY child. The reorder above closes
+    // the known trigger; this guard closes the rest — any throw before the record
+    // is registered would otherwise leave a child that `list()` cannot see and
+    // `kill()` cannot reach.
+    try {
+      session.on('data', (d) => terminalModel.write(d));
+      const record = {
+        id: session.id, session, terminalModel, adapter,
+        queue: new PromptQueue(), createdAt: Date.now(),
+        profile: name, dialogPolicy: p.dialogPolicy,
+      };
+      // Build the dialog handler over the record, then hand it to the detector so
+      // an auto-answered dialog keeps the session busy rather than surfacing.
+      const dialogHandler = makeDialogHandler(record);
+      record.detector = new StateDetector({ session, terminalModel, adapter, quiescenceMs: p.quiescenceMs, dialogHandler });
+      this._records.set(session.id, record);
+      return record;
+    } catch (e) {
+      try { session.kill(); } catch { /* already dead — nothing to reap */ }
+      throw e;
+    }
   }
   get(id) { return this._records.get(id); }
   list() { return [...this._records.values()]; }

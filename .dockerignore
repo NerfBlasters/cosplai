@@ -1,0 +1,9 @@
+node_modules
+vendor
+scratch
+.git
+.claude
+.superpowers
+docs
+test
+*.log

@@ -1,0 +1,23 @@
+{
+  "name": "cosplai",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test",
+    "pin": "node scripts/pin-clis.mjs"
+  },
+  "dependencies": {
+    "@xterm/headless": "^5.5.0",
+    "node-pty": "^1.0.0",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@anthropic-ai/sdk": "^0.114.0",
+    "openai": "^6.49.0"
+  }
+}

@@ -1,0 +1,26 @@
+7[r8[?25h[?25l[?2004h[?1004h[?2031h
+[38;2;255;204;0m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────[39m
+[2G[38;2;255;204;0m[1mAccessing[12Gworkspace:[22m[39m
+
+[2G[1m/home/kali[22m
+
+[2GQuick[8Gsafety[15Gcheck:[22GIs[25Gthis[30Ga[32Gproject[40Gyou[44Gcreated[52Gor[55Gone[59Gyou[63Gtrust?[70G(Like[76Gyour[81Gown[85Gcode,[91Ga[93Gwell-known[104Gopen[109Gsource
+[2Gproject,[11Gor[14Gwork[19Gfrom[24Gyour[29Gteam).[36GIf[39Gnot,[44Gtake[49Ga[51Gmoment[58Gto[61Greview[68Gwhat's[75Gin[78Gthis[83Gfolder[90Gfirst.
+
+[2GClaude[9GCode'll[17Gbe[20Gable[25Gto[28Gread,[34Gedit,[40Gand[44Gexecute[52Gfiles[58Ghere.
+
+[2G[38;2;153;153;153mSecurity[11Gguide[39m
+
+[2G[38;2;153;204;255m❯[4G[38;2;153;153;153m1.[7G[38;2;153;204;255mYes,[12GI[14Gtrust[20Gthis[25Gfolder[39m
+[4G[38;2;153;153;153m2.[7G[39mNo,[11Gexit
+
+[2G[38;2;153;153;153mEnter[8Gto[11Gconfirm[19G·[21GEsc[25Gto[28Gcancel[39m
+[1C[4A[>0q[c[1D[4B[6C[4A[38;2;51;153;255mYes, I trust this folder[32G✔[39m
+
+
+
+[1C[4A]0;✳ Claude Code[1D[4B[2K[1A[2K[G[1A[15A[38;2;215;119;87m ▐[48;2;0;0;0m▛███▜[49m▌[12G[39m[1mClaude Code[24G[22m[38;2;153;153;153mv2.1.198[1B[38;2;215;119;87m▝▜[48;2;0;0;0m█████[49m▛▘[39m  [38;2;153;153;153mOpus 4.8 (1M context) with xhigh effort · Claude Max[39m[K[1B[38;2;215;119;87m  ▘▘ ▝▝  [39m  [38;2;153;153;153m/home/kali[1C[2B[38;2;255;153;51m▎[39m [38;2;255;153;51mFable 5 is back.[1C[1B▎[4G[39mUntil[10GJuly[15G7,[18Gyou[22Gcan[26Guse[30Gup[33Gto[36G50%[40Gof[43Gyour[48Gplan's[55Gweekly[62Gusage[68Glimit[74Gon[77GFable[83G5.[86GIf[89Gyou[93Ghit[97Gyour[102Glimit,[109Gyou[113Gcan[1C[1B[38;2;255;153;51m▎[39m continu[12G on Fable[22G5 with usage credits.[44GFable 5[52Gd[54Gaws down[63Gusage faster[76Gthan[81GOpus 4.8.[91GLearn more[K[1C[1B[38;2;255;153;51m▎[39m (https://support.claude.com/en/articles/15424964-claude-fable-5-promotio[77Gal-access)[K[3C[1B[38;2;153;153;153m+1 more · /status[1C[1B[39m[K[1B[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────[1B[39m❯ [2mTry "how do I log an error?"[1B[22m[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────[1C[1B[39m [38;2;153;153;153m? for shortcuts · ← for agents[111G0 tokens[3C[1B[39m      [11G    [102G[38;2;153;153;153m◉ xhigh · /effort[1B[39m[K[1B[K[1A[2C[4A[?25h[?25l[2D[4B[2C[4A[K
+
+
+
+[2C[4A[?25h

@@ -1,0 +1,22 @@
+{
+  "claude": {
+    "source": "npm",
+    "package": "@anthropic-ai/claude-code",
+    "version": "2.1.219"
+  },
+  "codex": {
+    "source": "npm",
+    "package": "@openai/codex",
+    "version": "0.134.0"
+  },
+  "copilot": {
+    "source": "npm",
+    "package": "@github/copilot",
+    "version": "1.0.76"
+  },
+  "agy": {
+    "source": "external",
+    "version": "1.1.6",
+    "sha256": "3e88d9b4e4a2da12d7afaf1cc64fe4d2922688f227712e483f83a3e01eda2800"
+  }
+}

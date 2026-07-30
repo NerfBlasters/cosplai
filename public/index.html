@@ -1,0 +1,26 @@
+<!doctype html><html><head><meta charset="utf-8"><title>pty-web-bridge</title>
+<link rel="stylesheet" href="/vendor/xterm.css">
+<style>html,body{margin:0;height:100%;background:#000}#t{height:100vh}</style></head>
+<body><div id="t"></div>
+<script src="/vendor/xterm.js"></script>
+<script src="/vendor/addon-fit.js"></script>
+<script>
+const params = new URLSearchParams(location.search);
+const token = params.get('token') || '';
+const session = params.get('session');
+const profile = params.get('profile');
+const term = new Terminal({ cursorBlink:true, fontFamily:'monospace', fontSize:14 });
+const fit = new (FitAddon.FitAddon || FitAddon)();
+term.loadAddon(fit); term.open(document.getElementById('t')); fit.fit();
+const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+const q = new URLSearchParams({ token });
+if (session) q.set('session', session);
+if (profile && !session) q.set('profile', profile);
+const ws = new WebSocket(`${proto}://${location.host}/ws?${q.toString()}`);
+ws.binaryType = 'arraybuffer';
+ws.onmessage = e => term.write(typeof e.data === 'string' ? e.data : new Uint8Array(e.data));
+ws.onopen = () => { sendResize(); };
+term.onData(d => ws.readyState===1 && ws.send(d));
+function sendResize(){ fit.fit(); ws.readyState===1 && ws.send(JSON.stringify({type:'resize',cols:term.cols,rows:term.rows})); }
+addEventListener('resize', sendResize);
+</script></body></html>

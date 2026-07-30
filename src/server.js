@@ -32,7 +32,7 @@ server.listen(config.port, config.host, () => {
     config.facade.openaiResponses && 'openai-responses',
     config.facade.anthropicMessages && 'anthropic-messages',
   ].filter(Boolean).join(', ') || 'none';
-  console.log(`pty-web-bridge listening.`);
+  console.log(`cosplai listening.`);
   console.log(`Open: ${url}`);
   console.log(`Facade dialects: ${dialects}`);
   if (config.tokenGenerated) console.log(`(token was generated; set BRIDGE_TOKEN to pin it)`);

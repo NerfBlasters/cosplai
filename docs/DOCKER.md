@@ -8,7 +8,7 @@ versions), fully decoupled from anything installed on the host. External pins
 ## Build & run
 
 ```bash
-docker build -t pty-web-bridge .
+docker build -t cosplai .
 
 docker run -d --init --name bridge \
   -p 127.0.0.1:7681:7681 \
@@ -16,7 +16,7 @@ docker run -d --init --name bridge \
   -v ~/.claude:/home/node/.claude \
   -v ~/.codex:/home/node/.codex \
   -v ~/.copilot:/home/node/.copilot \
-  pty-web-bridge
+  cosplai
 ```
 
 The container runs as the base image's `node` user (uid/gid 1000) so

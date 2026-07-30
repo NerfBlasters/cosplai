@@ -2,7 +2,7 @@
 
 > *anything is an API if you want it to be* — interactive AI CLIs, cosplaying as cloud APIs.
 
-(internal module name: `pty-web-bridge`)
+(cosplai grew up as `pty-web-bridge` — the dated build records under `docs/superpowers/` keep the old name.)
 
 A local Node service that owns real PTY-backed **interactive** AI-CLI sessions
 (`claude`, `codex`, `copilot`, `antigravity` — or any REPL via the `generic`
@@ -107,7 +107,7 @@ output.)
 ```bash
 npm install
 npm start
-# pty-web-bridge listening.
+# cosplai listening.
 # Open: http://127.0.0.1:7681/?token=<generated-token>
 ```
 

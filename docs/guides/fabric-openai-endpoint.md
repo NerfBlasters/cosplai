@@ -32,7 +32,7 @@ and the repo URL generalized) with: bridge on Node v20.19.2, **copilot CLI
 ## 1. Bridge setup
 
 ```bash
-git clone <repo-url> pty-web-bridge && cd pty-web-bridge
+git clone https://github.com/NerfBlasters/cosplai && cd cosplai
 npm install
 npm run pin        # vendors the pinned CLIs (vendor/ is gitignored; every fresh clone needs this)
 ```
@@ -54,7 +54,7 @@ PROFILE_COPILOT_HEADLESS_ARGS='["--model","gpt-5.6-terra"]' \
   node src/server.js
 ```
 
-Startup must show `version ok: copilot 1.0.76 (…)`, `pty-web-bridge
+Startup must show `version ok: copilot 1.0.76 (…)`, `cosplai
 listening.` and `Facade dialects: openai-chat, openai-responses,
 anthropic-messages`. **The server runs in the foreground — leave it running
 and do the rest of this guide in a second terminal.**

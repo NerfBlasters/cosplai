@@ -5,18 +5,35 @@
 <script src="/vendor/xterm.js"></script>
 <script src="/vendor/addon-fit.js"></script>
 <script>
+// The three query params below are attacker-supplyable (anyone can hand a user
+// a crafted link to this page), and they flow into the WebSocket URL — the
+// client-resource-injection sink. Two defenses, belt and suspenders:
+//   1. `session` / `profile` are charset-validated here and dropped if they
+//      don't match; the opaque `token` is length-bounded.
+//   2. The socket URL is assembled with the URL API against THIS document's
+//      own origin, never by string-concatenating `location.host`. Params can
+//      only ever land in the query component (percent-encoded by
+//      URLSearchParams), so none of them can steer the connection to a
+//      different authority, port, or path.
+// The response's `connect-src 'self'` CSP (src/httpApi.js) is the third layer.
 const params = new URLSearchParams(location.search);
-const token = params.get('token') || '';
-const session = params.get('session');
-const profile = params.get('profile');
+const pick = (name, re) => { const v = params.get(name); return v && re.test(v) ? v : null; };
+// Session ids are minted by SessionManager; profile names come from the
+// built-in table in src/config.js. Both bounded conservatively.
+const session = pick('session', /^[A-Za-z0-9_-]{1,128}$/);
+const profile = pick('profile', /^[a-z][a-z0-9-]{0,63}$/);
+// BRIDGE_TOKEN is operator-chosen, so the token stays opaque — length-capped
+// rather than charset-filtered, and encoded on the way out.
+const token = (params.get('token') || '').slice(0, 512);
 const term = new Terminal({ cursorBlink:true, fontFamily:'monospace', fontSize:14 });
 const fit = new (FitAddon.FitAddon || FitAddon)();
 term.loadAddon(fit); term.open(document.getElementById('t')); fit.fit();
-const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-const q = new URLSearchParams({ token });
-if (session) q.set('session', session);
-if (profile && !session) q.set('profile', profile);
-const ws = new WebSocket(`${proto}://${location.host}/ws?${q.toString()}`);
+const wsUrl = new URL('/ws', location.href);
+wsUrl.protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+wsUrl.searchParams.set('token', token);
+if (session) wsUrl.searchParams.set('session', session);
+if (profile && !session) wsUrl.searchParams.set('profile', profile);
+const ws = new WebSocket(wsUrl.href);
 ws.binaryType = 'arraybuffer';
 ws.onmessage = e => term.write(typeof e.data === 'string' ? e.data : new Uint8Array(e.data));
 ws.onopen = () => { sendResize(); };

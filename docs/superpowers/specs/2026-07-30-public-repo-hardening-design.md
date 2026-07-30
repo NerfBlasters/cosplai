@@ -209,3 +209,88 @@ Claims about controls are only worth what was actually observed:
 - Scorecard's branch-protection check will be inconclusive without a PAT
   (§4.4).
 - Signing is not enforced, and depends on a manual key upload (§4.8).
+
+---
+
+## 9. As-built addendum (2026-07-30)
+
+Shipped in PRs #2 and #7. Five deviations from the design above, one claim
+that could not be verified as written, and one incident.
+
+### 9.1 Deviations
+
+1. **gitleaks-action replaced by the upstream binary** (§4.5). The action is
+   proprietary — "Gitleaks LLC, All Rights Reserved", commercial EULA — while
+   the gitleaks CLI is MIT. CI now downloads the MIT release pinned by
+   **sha256** and verifies it before use. Fewer third-party dependencies, no
+   EULA, and a stronger pin than a tag or even a SHA-pinned action.
+
+2. **The allowlist is not rule-scoped** (§4.1). `targetRules` is unsupported
+   on gitleaks 8.26, the version Debian/Kali ships — and when present it causes
+   the *entire allowlist to be silently ignored* rather than erroring. Scoping
+   as designed would have produced a config that passed CI (8.30) and failed on
+   every contributor's machine. Path-scoping alone behaves identically on both.
+
+3. **The allowlist is narrower than specced** (§4.1). The design predicted
+   false positives from `test/fixtures/*.txt` and the README's
+   `BRIDGE_TOKEN=some-long-random-string`. A baseline scan flagged **neither**
+   — the only finding was `t.FourKeyMap=` in the minified vendored xterm.js.
+   Allowlisting is therefore limited to `public/vendor/`. Evidence over
+   prediction.
+
+4. **Rollout order changed** (§6). PR #1 was merged before the hardening PR, at
+   the maintainer's direction. Both merge orders were dry-run in-memory
+   (`git merge-tree`) and confirmed conflict-free despite both branches editing
+   `README.md`. This order is strictly better: the hardening CI then ran
+   against a `master` that already contained PR #1, so the first CI run
+   validated the real merged state. The constraint that actually mattered —
+   the ruleset goes last — was preserved.
+
+5. **Three required checks, not one** (§4.7). `test`, `secret-scan`, and
+   `analyze` are all required, rather than only the CI test job.
+
+### 9.2 Verified
+
+- Hook **blocks** a staged synthetic `BRIDGE_TOKEN` (HEAD unchanged after).
+- Hook **fails closed** when gitleaks is absent: `exit=1` with install
+  instructions, not a silent pass. Tested with a sandboxed `PATH` containing
+  bash and git but not gitleaks — an earlier attempt using `PATH=/nonexistent`
+  proved nothing, since it broke the `env bash` shebang itself.
+- Full history scans clean under `.gitleaks.toml`.
+- All workflow YAML parses; zero unpinned `uses:` (all 40-char SHAs).
+- 252/252 tests pass against the merged state, locally and in CI.
+- All four checks green on GitHub; ruleset confirmed active via
+  `GET /repos/{owner}/{repo}/rules/branches/master`.
+- SSH signing works end to end: commits verify locally (`%G?` = `G`) and
+  GitHub reports `verified: true` once the key was added with
+  `gh ssh-key add --type signing`.
+
+### 9.3 Not verified — and why
+
+§7 called for confirming that **a direct push to `master` is refused**. This
+cannot be demonstrated by the repository owner: admin bypass is `always` by
+design (§4.7), so a push by the owner is *expected* to succeed and proves
+nothing either way. The rules are confirmed present and active via the API;
+their effect on a non-bypassing actor is untested, because this repo currently
+has no such actor. Stated rather than quietly dropped.
+
+### 9.4 Incident: scan artifacts committed to a public repo
+
+18 files under `cosplai_VULNHUNT_RESULTS_*/` — output from a separate scan run
+writing into the working tree — were swept into `321bedf` and `1711652` by a
+`git add -A` and reached `master`.
+
+Reviewed before removal: no tokens, keys, or credentials (checked for
+`BRIDGE_TOKEN=`, `gho_`/`ghp_`, PEM headers, `~/.ssh` paths). 476K of
+vulnerability analysis of already-public code, plus the local path
+`/home/kali/repos/cosplai`. Clutter and a prematurely-public unverified
+analysis; not a credential exposure.
+
+Fixed in PR #7: `*_VULNHUNT_RESULTS_*/` added to `.gitignore`, files untracked
+with `git rm --cached` so the still-running scan was undisturbed. **Left in
+history**, on the grounds that force-pushing a public `master` is
+disproportionate when no secret is involved. Admin bypass means that decision
+is still reversible.
+
+Root cause: `git add -A` in a working tree containing foreign files. Staging
+explicitly would have prevented it.

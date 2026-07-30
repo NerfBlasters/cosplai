@@ -132,3 +132,41 @@ test('VULN-002: the leak does not accumulate across repeated failures', async ()
   assert.equal(stillAlive.length, 0,
     `3 failed creates orphaned ${stillAlive.length} live child(ren): [${stillAlive.join(',')}] — leak scales with request count`);
 });
+
+// The reorder above means TerminalModel (the validating step) now throws before
+// the PTY is spawned, so the SCROLLBACK case never reaches the try/catch. This
+// test covers the guard itself: it forces a throw INSIDE the try block, after
+// the child is live but before the record is registered, by making the shared
+// adapter object throw on the first property StateDetector touches.
+test('VULN-002: a throw after the spawn but before registration reaps the child', async () => {
+  const { getAdapter } = await import('../src/adapters/index.js');
+  const adapter = getAdapter('generic');
+  const original = Object.getOwnPropertyDescriptor(adapter, 'isBusy');
+
+  const manager = new SessionManager(loadConfig({
+    ADAPTER: 'generic', CLAUDE_CMD: 'bash', CLAUDE_ARGS: '["-i"]',
+    BRIDGE_TOKEN: 'tok', QUIESCENCE_MS: '100',
+  }));
+  const before = liveBashPids();
+
+  Object.defineProperty(adapter, 'isBusy', {
+    configurable: true,
+    get() { throw new Error('induced post-spawn failure'); },
+  });
+  try {
+    assert.throws(() => manager.create({}), /induced post-spawn failure/,
+      'the induced failure should surface to the caller');
+  } finally {
+    if (original) Object.defineProperty(adapter, 'isBusy', original);
+    else delete adapter.isBusy;
+  }
+
+  await new Promise((r) => setTimeout(r, 400));
+  const leaked = liveBashPids().filter((p) => !before.includes(p));
+  const stillAlive = leaked.filter(isAlive);
+  reap(leaked);
+
+  assert.equal(manager.list().length, 0, 'no record should be registered');
+  assert.equal(stillAlive.length, 0,
+    `a throw between spawn and registration orphaned ${stillAlive.length} live child(ren): [${stillAlive.join(',')}] — the try/catch did not reap it`);
+});

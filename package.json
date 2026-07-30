@@ -2,6 +2,7 @@
   "name": "cosplai",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "engines": {
     "node": ">=20"
@@ -9,7 +10,8 @@
   "scripts": {
     "start": "node src/server.js",
     "test": "node --test",
-    "pin": "node scripts/pin-clis.mjs"
+    "pin": "node scripts/pin-clis.mjs",
+    "hooks:install": "git config core.hooksPath .githooks && echo 'hooks active (.githooks) — requires gitleaks on PATH'"
   },
   "dependencies": {
     "@xterm/headless": "^5.5.0",

@@ -1,0 +1,28 @@
+# gitleaks configuration — see .githooks/pre-commit and .github/workflows/ci.yml
+#
+# Scope note: the bridge's own BRIDGE_TOKEN is
+# `crypto.randomBytes(24).toString('base64url')` — generic high-entropy with no
+# vendor prefix. GitHub's push protection matches partner patterns and will NOT
+# flag it. Catching that shape is the entire reason gitleaks runs here, so the
+# default ruleset's entropy-based `generic-api-key` rule must stay enabled.
+
+[extend]
+useDefault = true
+
+# The ONLY allowlist. Added in response to a real finding, not pre-emptively:
+# a baseline scan of full history flagged `t.FourKeyMap=<...>` in the minified
+# xterm.js bundle. Minified third-party code reliably produces high-entropy
+# `<word>Key=<token>` fragments that look exactly like credentials.
+#
+# Scoped to a path we never hand-edit, and nothing else. It is NOT rule-scoped:
+# `targetRules` (which would have narrowed this to generic-api-key alone) is
+# unsupported in gitleaks 8.26, the version Debian/Kali ships — and when
+# present it causes the entire allowlist to be ignored rather than erroring.
+# Keeping it out means this config behaves identically on 8.26 and on the
+# pinned 8.30 CI runs. Revisit once the floor version is comfortably newer.
+#
+# Never widen this by lowering the global entropy threshold — that would
+# disable the one rule capable of catching a leaked BRIDGE_TOKEN.
+[[allowlists]]
+description = "Vendored, minified third-party browser assets (xterm.js and addons)"
+paths = ['''^public/vendor/''']

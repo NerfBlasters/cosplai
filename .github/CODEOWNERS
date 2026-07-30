@@ -1,0 +1,12 @@
+# DOCUMENTATION ONLY — this file enforces nothing today.
+#
+# "Require review from Code Owners" depends on
+# required_approving_review_count >= 1. This repo's ruleset runs with 0,
+# because it has a single maintainer and GitHub forbids self-approval; a
+# non-zero count would hard-block every merge.
+#
+# It is kept so ownership is recorded for future collaborators, and so that
+# raising the approval count later is a one-setting change rather than
+# archaeology. Do not cite its presence as evidence that review is enforced.
+
+* @NerfBlasters

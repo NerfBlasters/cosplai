@@ -533,3 +533,59 @@ in-process bridge with zero live CLI usage; `node --test` runs the full
 offline suite.
 For opt-in live verification against the real CLIs, see
 `scripts/live-acceptance.mjs` ([Cloud-API facade](#cloud-api-facade)).
+
+## Contributing
+
+### One-time setup: the secret-scanning hook
+
+```bash
+npm install
+npm run hooks:install     # git config core.hooksPath .githooks
+sudo apt install gitleaks # or: brew install gitleaks
+```
+
+`.githooks/pre-commit` runs `gitleaks` over the staged diff and **fails
+closed** — if the binary isn't installed it refuses the commit rather than
+passing silently, because a hook that no-ops when its tool is missing is worse
+than no hook: you think you're covered.
+
+This is not redundant with GitHub's push protection, which is also enabled.
+Push protection matches *partner patterns* — vendor credentials with
+recognizable shapes. `BRIDGE_TOKEN` is
+`crypto.randomBytes(24).toString('base64url')`: generic high-entropy with no
+prefix, so GitHub will not flag it, and it grants
+[shell-equivalent access](#security). Closing that specific gap is the point.
+
+`git commit --no-verify` bypasses the hook. That's survivable rather than a
+hole, because CI re-scans **full history** on every PR — but don't make a
+habit of it.
+
+Known false positives go in `.gitleaks.toml` as a **path- or pattern-scoped**
+entry with a note explaining why. Never silence a finding by lowering the
+global entropy threshold; that disables the one rule capable of catching a
+leaked token.
+
+### CI
+
+Every PR runs the test suite on Node 20, a full-history gitleaks scan, and
+CodeQL's `security-extended` suite. `master` requires a PR with those checks
+green — direct pushes, force-pushes, and branch deletion are blocked. Actions
+are pinned to full commit SHAs and walked forward by Dependabot.
+
+### Security reports
+
+See [SECURITY.md](SECURITY.md) — including the threat model, which lists what
+is deliberately *not* a vulnerability here (the token being equivalent to
+shell access, chiefly).
+
+## License
+
+[MIT](LICENSE).
+
+Note that this licenses **this repository's code** and nothing else. It grants
+no rights over the AI CLIs the bridge drives, and it cannot and does not
+override those vendors' subscription terms — which, as
+[Security](#security) notes, restrict subscription-authenticated access to the
+individual account holder. "MIT-licensed" and "operator-scope only" are not in
+tension: the first is about this code, the second about someone else's
+service.

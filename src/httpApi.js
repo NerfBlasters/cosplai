@@ -164,6 +164,11 @@ async function sendFile(res, file, type, extraHeaders = {}) {
 
 const VENDOR_TYPES = { '.js': 'application/javascript', '.css': 'text/css' };
 
+// Upper bound on a single POST /api/sessions/:id/key request. Each entry is a
+// separate PTY write held on the session's queue, so an unbounded array lets one
+// request monopolize the session for an arbitrary time.
+const MAX_KEYS_PER_REQUEST = 64;
+
 export function createHttpServer(config, manager, facade = null) {
   return http.createServer(async (req, res) => {
     try {
@@ -232,9 +237,22 @@ export function createHttpServer(config, manager, facade = null) {
           if (!rec.session.alive) return json(res, 409, { error: 'session not alive' });
           const b = await readBodyOr413(req, res);
           if (b === undefined) return;
-          for (const k of (b.keys || [])) rec.session.write(rec.adapter.keySeq(k));
+          const keys = b.keys ?? [];
+          if (!Array.isArray(keys) || !keys.every((k) => typeof k === 'string')) {
+            return json(res, 400, { error: 'keys must be an array of strings' });
+          }
+          if (keys.length > MAX_KEYS_PER_REQUEST) {
+            return json(res, 400, { error: `keys may contain at most ${MAX_KEYS_PER_REQUEST} entries` });
+          }
+          // Serialize through the session's PromptQueue, exactly as /prompt does
+          // above. Writing outside the queue lands these bytes in the middle of
+          // an in-flight turn's capture window, corrupting the output that turn
+          // returns to its caller (CWE-362).
           const q = config.profiles[rec.profile]?.quiescenceMs ?? config.quiescenceMs;
-          await new Promise((r) => setTimeout(r, Math.min(q * 2, 1000)));
+          await rec.queue.enqueue(async () => {
+            for (const k of keys) rec.session.write(rec.adapter.keySeq(k));
+            await new Promise((r) => setTimeout(r, Math.min(q * 2, 1000)));
+          });
           return json(res, 200, { state: rec.detector.state });
         }
         if (req.method === 'GET' && parts[3] === 'events') {

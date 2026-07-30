@@ -174,3 +174,66 @@ test('POST /key waits on the session profile quiescence, not the global', async 
   await fetch(url(port, `/api/sessions/${id}`), { method: 'DELETE', ...auth });
   server.close();
 });
+
+// A turn that emits continuously, so the quiescence detector keeps it busy.
+const BUSY_TURN = 'for i in $(seq 1 40); do echo tick$i; sleep 0.1; done; echo TURN_DONE';
+
+test('VULN-003: /key is serialized behind an in-flight /prompt turn', async () => {
+  const { server, port, manager } = await boot();
+  try {
+    const { id } = await (await fetch(url(port, '/api/sessions'), { method: 'POST', ...auth, body: '{}' })).json();
+    await new Promise(r => setTimeout(r, 800));
+
+    const promptDone = fetch(url(port, `/api/sessions/${id}/prompt`), {
+      method: 'POST', ...auth, body: JSON.stringify({ text: BUSY_TURN }),
+    }).then(async r => r.json());
+
+    await new Promise(r => setTimeout(r, 700));
+
+    const kt0 = Date.now();
+    const keyRes = await fetch(url(port, `/api/sessions/${id}/key`), {
+      method: 'POST', ...auth, body: JSON.stringify({ keys: ['INTERLEAVED_BY_KEY\r'] }),
+    });
+    const keyMs = Date.now() - kt0;
+    const prompt = await promptDone;
+
+    assert.equal(keyRes.status, 200);
+    assert.ok(keyMs > 1500,
+      `/key returned in ${keyMs} ms while a multi-second turn held the queue — it bypassed PromptQueue`);
+    assert.ok(!JSON.stringify(prompt).includes('INTERLEAVED_BY_KEY'),
+      '/key bytes landed inside the in-flight turn\'s captured output');
+  } finally {
+    for (const r of manager.list()) manager.remove(r.id);
+    server.close();
+  }
+});
+
+test('VULN-003: /key rejects a non-array keys payload', async () => {
+  const { server, port, manager } = await boot();
+  try {
+    const { id } = await (await fetch(url(port, '/api/sessions'), { method: 'POST', ...auth, body: '{}' })).json();
+    await new Promise(r => setTimeout(r, 500));
+    const r = await fetch(url(port, `/api/sessions/${id}/key`), {
+      method: 'POST', ...auth, body: JSON.stringify({ keys: 'enter' }),
+    });
+    assert.equal(r.status, 400, `expected 400 for a non-array keys payload, got ${r.status}`);
+  } finally {
+    for (const r of manager.list()) manager.remove(r.id);
+    server.close();
+  }
+});
+
+test('VULN-003: /key rejects an over-long keys array', async () => {
+  const { server, port, manager } = await boot();
+  try {
+    const { id } = await (await fetch(url(port, '/api/sessions'), { method: 'POST', ...auth, body: '{}' })).json();
+    await new Promise(r => setTimeout(r, 500));
+    const r = await fetch(url(port, `/api/sessions/${id}/key`), {
+      method: 'POST', ...auth, body: JSON.stringify({ keys: Array(5000).fill('enter') }),
+    });
+    assert.equal(r.status, 400, `expected 400 for an unbounded keys array, got ${r.status}`);
+  } finally {
+    for (const r of manager.list()) manager.remove(r.id);
+    server.close();
+  }
+});

@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+# Blocks a commit that would introduce a secret.
+#
+# Activate:  npm run hooks:install   (== git config core.hooksPath .githooks)
+# Bypass:    git commit --no-verify
+#
+# FAILS CLOSED. If gitleaks is not installed this exits non-zero with install
+# instructions rather than passing. A hook that silently no-ops when its tool
+# is missing is worse than no hook at all: you believe you are covered when
+# you are not. The deliberate bypass is --no-verify, and CI re-scans full
+# history on every PR, so bypassing is survivable rather than a hole.
+#
+# Why this exists when GitHub push protection is already enabled: push
+# protection matches *partner patterns* — vendor credentials with recognizable
+# shapes. This project's BRIDGE_TOKEN is randomBytes(24).toString('base64url'),
+# generic high-entropy with no prefix, and GitHub will not flag it. It also
+# grants full interactive control of every enabled CLI. That gap is the whole
+# reason for this hook.
+set -uo pipefail
+
+if ! command -v gitleaks >/dev/null 2>&1; then
+  cat >&2 <<'MSG'
+pre-commit: gitleaks is not installed — refusing to commit unscanned.
+
+  Debian/Kali  sudo apt install gitleaks
+  macOS        brew install gitleaks
+  other        https://github.com/gitleaks/gitleaks/releases
+
+To skip this check deliberately:  git commit --no-verify
+MSG
+  exit 1
+fi
+
+ROOT="$(git rev-parse --show-toplevel)"
+
+# `git --staged` scans only what this commit would add. Note the command name:
+# `gitleaks protect` was removed in 8.19 — this is the current spelling.
+if ! gitleaks git --staged --no-banner --redact --config "$ROOT/.gitleaks.toml" "$ROOT"; then
+  cat >&2 <<'MSG'
+
+pre-commit: gitleaks flagged a potential secret in the STAGED changes (above).
+
+Nothing was committed. Either remove the secret, or — if it is genuinely a
+false positive — add a path-scoped entry to .gitleaks.toml and say why in the
+commit message. Do not lower the global entropy threshold to silence it: that
+disables the one rule capable of catching a leaked BRIDGE_TOKEN.
+MSG
+  exit 1
+fi

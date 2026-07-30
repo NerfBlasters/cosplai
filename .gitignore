@@ -4,3 +4,7 @@ node_modules/
 .env
 scratch/
 .superpowers/
+
+# Security-scan output written into the working tree by tooling (vulnhunt et al).
+# Ignored rather than deleted: a scan may still be writing while you work.
+*_VULNHUNT_RESULTS_*/

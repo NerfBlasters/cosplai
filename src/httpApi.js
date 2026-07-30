@@ -194,7 +194,7 @@ export function createHttpServer(config, manager, facade = null) {
           const rec = manager.create(b);
           return json(res, 201, { id: rec.id, state: rec.detector.state, profile: rec.profile });
         } catch (e) {
-          if (['UNKNOWN_PROFILE', 'PROFILE_NOT_PTY', 'PROFILE_NO_COMMAND', 'ADAPTER_UNAVAILABLE'].includes(e.code)) {
+          if (['UNKNOWN_PROFILE', 'PROFILE_NOT_PTY', 'PROFILE_NO_COMMAND', 'ADAPTER_UNAVAILABLE', 'INVALID_GEOMETRY'].includes(e.code)) {
             return json(res, 400, { error: String(e.message), ...(e.validProfiles ? { validProfiles: e.validProfiles } : {}) });
           }
           throw e;

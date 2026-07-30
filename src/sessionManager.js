@@ -1,10 +1,29 @@
 import { Session } from './session.js';
-import { TerminalModel } from './terminalModel.js';
+import { TerminalModel, MAX_DIMENSION, MIN_DIMENSION } from './terminalModel.js';
 import { StateDetector } from './stateDetector.js';
 import { PromptQueue } from './promptQueue.js';
 import { getAdapter } from './adapters/index.js';
 
 const envKey = (name) => name.toUpperCase().replace(/-/g, '_');
+
+// Reject caller-supplied geometry outside the supported range instead of
+// silently clamping it. TerminalModel clamps unconditionally (that is the
+// root-cause fix); this boundary check exists so an API client learns its
+// request was wrong rather than getting a terminal that isn't the size it
+// asked for. Absent values are fine — they fall through to profile defaults.
+function assertGeometry(cols, rows) {
+  for (const [label, value] of [['cols', cols], ['rows', rows]]) {
+    if (value === undefined || value === null) continue;
+    const n = Number(value);
+    if (!Number.isFinite(n) || !Number.isInteger(n) || n < MIN_DIMENSION || n > MAX_DIMENSION) {
+      const err = new Error(
+        `${label} must be an integer between ${MIN_DIMENSION} and ${MAX_DIMENSION} (got ${JSON.stringify(value)})`,
+      );
+      err.code = 'INVALID_GEOMETRY';
+      throw err;
+    }
+  }
+}
 
 // Startup-dialog policy as a pure per-tail decision (spec "Profiles"), consulted
 // by the detector BEFORE it settles a turn (so an answered dialog never surfaces
@@ -40,6 +59,7 @@ export class SessionManager {
   constructor(config) { this._config = config; this._records = new Map(); }
   create({ profile, cwd, cols, rows } = {}) {
     const c = this._config;
+    assertGeometry(cols, rows);
     const name = profile || c.defaultProfile;
     const p = c.profiles[name];
     if (!p) {

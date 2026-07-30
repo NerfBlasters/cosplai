@@ -96,6 +96,22 @@ output.)
 - The only unauthenticated surface is `GET /vendor/*` (the vendored xterm.js
   static assets needed to render the login-less page shell); everything else
   is gated.
+- Every response carries `X-Content-Type-Options: nosniff`, `X-Frame-Options:
+  DENY`, and `Referrer-Policy: no-referrer` — the last one matters because the
+  token rides in the query string, and a default referrer policy would leak it
+  in the `Referer` of any outbound navigation. The terminal shell additionally
+  gets a `default-src 'none'` CSP whose `connect-src 'self'` is the
+  browser-enforced backstop on the WebSocket URL the page builds.
+- **HSTS is emitted only over real TLS.** The bridge serves plain HTTP on
+  loopback, and [RFC 6797 §7.2](https://www.rfc-editor.org/rfc/rfc6797#section-7.2)
+  says a browser MUST ignore `Strict-Transport-Security` received over
+  non-secure transport — so sending it here would be a no-op at best, and
+  harmful at worst (an STS entry pinned for `localhost` forces `https://` on
+  every other local service on that hostname). It is sent when the socket is
+  genuinely encrypted, or when a TLS-terminating reverse proxy you have opted
+  into trusting (`BRIDGE_TRUST_PROXY=1`) reports `X-Forwarded-Proto: https`.
+  Leave `BRIDGE_TRUST_PROXY` off unless such a proxy is in front of the bridge
+  *and* it overwrites that header — otherwise any client can spoof it.
 - **Operator-scope only.** This is for driving your own sessions for your own
   automation on your own machine. Do not re-expose this bridge (or a service
   built on it) as a product to other end users — the CLI vendors' subscription
@@ -456,9 +472,6 @@ A pin protects against *surprise* updates; it is not "frozen forever" —
 vendors can force-obsolete old versions server-side, so expect to walk pins
 forward deliberately.
 
-For full host isolation, [docs/DOCKER.md](docs/DOCKER.md) packages the
-bridge + npm pins into an image built from the same manifest.
-
 ## Configuration
 
 All via environment variables (`src/config.js`):
@@ -482,6 +495,7 @@ All via environment variables (`src/config.js`):
 | `BRIDGE_USE_HOST_CLIS` | `false` | skip `vendor/` bins, spawn host-`PATH` CLIs — see [Version pinning](#version-pinning-decoupling-from-host-autoupdates) |
 | `BRIDGE_STRICT_VERSIONS` | `false` | refuse to boot on a pinned-version mismatch instead of warning |
 | `BRIDGE_PROFILES` | all built-ins | comma-separated allowlist of enabled profile names |
+| `BRIDGE_TRUST_PROXY` | `false` | believe `X-Forwarded-Proto` from a fronting reverse proxy; gates the HSTS header — see [Security](#security) |
 | `PROFILE_<NAME>_COMMAND` | *(profile's built-in)* | executable to spawn for profile `<NAME>` |
 | `PROFILE_<NAME>_ARGS` | *(profile's built-in)* | JSON array string of args for profile `<NAME>` |
 | `PROFILE_<NAME>_ENV_SCRUB` | *(profile's built-in)* | comma-separated env var names to scrub for profile `<NAME>` |

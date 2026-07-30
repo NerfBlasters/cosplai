@@ -7,7 +7,6 @@
 - **[API.md](API.md)** — full HTTP / SSE / WebSocket reference with curl examples.
 - **[guides/fabric-openai-endpoint.md](guides/fabric-openai-endpoint.md)** —
   end-to-end guide: fabric as an OpenAI client against the copilot-backed facade.
-- **[DOCKER.md](DOCKER.md)** — containerized deployment, CLI auth volumes.
 - **[superpowers/specs/](superpowers/specs/)** — the original design spec.
 - **[superpowers/plans/](superpowers/plans/)** — the implementation plan the
   MVP was built from.

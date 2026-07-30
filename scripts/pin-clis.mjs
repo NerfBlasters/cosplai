@@ -3,8 +3,8 @@
 // npm pins: exact-version install under vendor/node_modules. external pins
 // (no public registry, e.g. agy): snapshot the host binary after verifying
 // its --version matches the manifest; sha256 recorded back into the manifest
-// on first pin. Exits non-zero on any mismatch. --npm-only skips externals
-// (container builds provide them at runtime).
+// on first pin. Exits non-zero on any mismatch. --npm-only skips externals,
+// for hosts that don't have the external CLIs installed to snapshot from.
 import { execFileSync, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';

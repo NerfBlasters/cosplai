@@ -72,6 +72,19 @@ alone never fires for them.
 - Binds `127.0.0.1` only. Every HTTP route and the WS upgrade require the token
   (`crypto.timingSafeEqual`); `/vendor/*` static libs are the only
   unauthenticated surface, path-traversal-guarded.
+- Response headers (`applySecurityHeaders` in `httpApi.js`, applied to bridge
+  routes, the static shell, and the facade dialects alike): `nosniff`,
+  `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer` (the token is in the
+  query string, so this one prevents `Referer` leakage). The shell also gets a
+  `default-src 'none'` CSP; its `connect-src 'self'` is the browser-side
+  backstop on the WebSocket URL `public/index.html` assembles, which is itself
+  built with the URL API against the document's own origin and validates the
+  `session`/`profile` params before forwarding them.
+- HSTS is conditional on the request actually being TLS (encrypted socket, or a
+  trusted proxy's `X-Forwarded-Proto: https` under `BRIDGE_TRUST_PROXY=1`).
+  RFC 6797 §7.2 requires UAs to ignore it over plain HTTP, and a pinned
+  `localhost` STS entry would break unrelated local services — so the default
+  loopback deployment deliberately does not emit it.
 - Child PTY env has the profile's `envScrub` list stripped (moved off a
   hardcoded `ANTHROPIC_*` delete onto per-profile lists in `config.js` —
   `claude` scrubs `ANTHROPIC_API_KEY`/`ANTHROPIC_AUTH_TOKEN`, other built-ins

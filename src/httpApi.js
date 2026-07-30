@@ -82,7 +82,63 @@ async function readBodyOr413(req, res) {
   }
 }
 
-async function sendFile(res, file, type) {
+// Content-Security-Policy for the terminal shell. `connect-src 'self'` is the
+// one that matters most here: it is the browser-enforced backstop on the
+// WebSocket URL the page builds (CSP3 lets 'self' match ws:/wss: on the
+// document's own origin), so even a bug in public/index.html's URL assembly
+// can't open a socket to somebody else's host. 'unsafe-inline' is required by
+// the page's own inline <script>/<style> blocks; everything the page loads
+// otherwise is same-origin vendored assets, so the rest can stay closed.
+const SHELL_CSP = [
+  "default-src 'none'",
+  "script-src 'self' 'unsafe-inline'",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data:",
+  "font-src 'self'",
+  "connect-src 'self'",
+  "base-uri 'none'",
+  "form-action 'none'",
+  "frame-ancestors 'none'",
+].join('; ');
+
+// Is this request genuinely running over TLS? Either the socket is directly
+// encrypted, or a reverse proxy the operator explicitly told us to trust
+// (BRIDGE_TRUST_PROXY=1) said so. Absent that opt-in the header is spoofable
+// by any client, so it is ignored.
+function isSecureRequest(req, trustProxy) {
+  if (req.socket && req.socket.encrypted) return true;
+  if (!trustProxy) return false;
+  const raw = req.headers['x-forwarded-proto'];
+  const first = String(Array.isArray(raw) ? raw[0] : raw || '').split(',')[0].trim().toLowerCase();
+  return first === 'https';
+}
+
+// Applied to EVERY response the bridge produces — bridge API routes, the
+// static shell, and the cloud-API facade dialects alike (the facade is
+// dispatched from inside this handler, so /v1/messages et al. inherit these).
+//
+// HSTS is deliberately conditional. The bridge serves plain HTTP on loopback
+// by default, and RFC 6797 §7.2 says a UA MUST ignore a
+// Strict-Transport-Security header received over non-secure transport — so
+// emitting it unconditionally is a no-op at best. At worst it is harmful: an
+// STS entry pinned for `localhost` forces https:// on every other local
+// service sharing that hostname. So it goes out only on a genuinely-TLS
+// request, which is exactly the deployment (TLS-terminating proxy in front)
+// where it does real work.
+//
+// `referrer-policy: no-referrer` is load-bearing rather than boilerplate here:
+// the bridge token travels in the query string (?token=…), so a default
+// referrer policy would leak it in the Referer of any outbound navigation.
+function applySecurityHeaders(req, res, config) {
+  res.setHeader('x-content-type-options', 'nosniff');
+  res.setHeader('x-frame-options', 'DENY');
+  res.setHeader('referrer-policy', 'no-referrer');
+  if (isSecureRequest(req, config.trustProxy)) {
+    res.setHeader('strict-transport-security', 'max-age=31536000; includeSubDomains');
+  }
+}
+
+async function sendFile(res, file, type, extraHeaders = {}) {
   // Reject anything that isn't a plain file up front (fs.createReadStream
   // happily "opens" a directory on Linux — the failure only surfaces as
   // EISDIR on the first read, by which point we'd already have committed to
@@ -102,7 +158,7 @@ async function sendFile(res, file, type) {
     if (res.headersSent) { res.destroy(); return; }
     json(res, 404, { error: 'not found' });
   });
-  s.on('open', () => res.writeHead(200, { 'content-type': type }));
+  s.on('open', () => res.writeHead(200, { 'content-type': type, ...extraHeaders }));
   s.pipe(res);
 }
 
@@ -111,6 +167,7 @@ const VENDOR_TYPES = { '.js': 'application/javascript', '.css': 'text/css' };
 export function createHttpServer(config, manager, facade = null) {
   return http.createServer(async (req, res) => {
     try {
+      applySecurityHeaders(req, res, config);
       const u = new URL(req.url, 'http://x');
 
       // Public, unauthenticated: vendored third-party static assets.
@@ -193,7 +250,8 @@ export function createHttpServer(config, manager, facade = null) {
 
       // Token already checked above: serve the HTML shell.
       if (req.method === 'GET' && (u.pathname === '/' || u.pathname === '/index.html')) {
-        return sendFile(res, path.join(PUBLIC, 'index.html'), 'text/html');
+        return sendFile(res, path.join(PUBLIC, 'index.html'), 'text/html',
+          { 'content-security-policy': SHELL_CSP });
       }
 
       return json(res, 404, { error: 'not found' });

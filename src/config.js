@@ -214,6 +214,13 @@ export function loadConfig(env = process.env, { vendorDir = path.join(REPO_ROOT,
     ringBytes: num(env.RING_BYTES, 262144),
     adapter: env.ADAPTER === 'generic' ? 'generic' : 'claude',
     strictVersions: flag(env.BRIDGE_STRICT_VERSIONS, false),
+    // Whether an `x-forwarded-proto` header may be believed. Only meaningful
+    // when a TLS-terminating reverse proxy sits in front of the bridge, and
+    // only safe when that proxy is guaranteed to overwrite the header — so it
+    // is opt-in. It gates the HSTS response header (see src/httpApi.js): a
+    // spoofable "yes, this was HTTPS" signal would otherwise let any client
+    // make a browser pin HSTS for the bridge's hostname.
+    trustProxy: flag(env.BRIDGE_TRUST_PROXY, false),
     profiles: Object.freeze(profiles),
     defaultProfile,
     facade: Object.freeze({

@@ -16,7 +16,7 @@
   "dependencies": {
     "@xterm/headless": "^5.5.0",
     "node-pty": "^1.0.0",
-    "ws": "^8.18.0"
+    "ws": "^8.21.1"
   },
   "devDependencies": {
     "@anthropic-ai/sdk": "^0.114.0",

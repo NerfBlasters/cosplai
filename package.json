@@ -14,7 +14,7 @@
     "hooks:install": "git config core.hooksPath .githooks && echo 'hooks active (.githooks) — requires gitleaks on PATH'"
   },
   "dependencies": {
-    "@xterm/headless": "^5.5.0",
+    "@xterm/headless": "^6.0.0",
     "node-pty": "^1.0.0",
     "ws": "^8.21.1"
   },

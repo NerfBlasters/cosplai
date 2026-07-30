@@ -8,6 +8,7 @@ import { TerminalModel } from '../src/terminalModel.js';
 import { SessionManager } from '../src/sessionManager.js';
 import { createHttpServer } from '../src/httpApi.js';
 import { loadConfig } from '../src/config.js';
+import { execSync } from 'node:child_process';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const MAX_DIM = 1000;
@@ -78,4 +79,56 @@ test('VULN-001: POST /api/sessions rejects out-of-range geometry with 400', asyn
   } finally {
     await teardown();
   }
+});
+
+const liveBashPids = () => execSync(
+  "ps -eo pid,args | grep 'bash -i' | grep -v grep | awk '{print $1}' || true",
+  { encoding: 'utf8' },
+).trim().split('\n').filter(Boolean);
+
+const isAlive = (pid) => { try { process.kill(Number(pid), 0); return true; } catch { return false; } };
+const reap = (pids) => { for (const p of pids) { try { process.kill(Number(p), 9); } catch {} } };
+
+// A post-spawn throw must not leak the PTY child. SCROLLBACK=1.5 is finite so
+// config's num() accepts it, but xterm rejects it — reproducing "any throw
+// between pty.spawn and record registration", which is the actual defect.
+// VULN-001's geometry clamp does NOT cover this path.
+function bootWithPostSpawnThrow() {
+  return new SessionManager(loadConfig({
+    ADAPTER: 'generic', CLAUDE_CMD: 'bash', CLAUDE_ARGS: '["-i"]',
+    BRIDGE_TOKEN: 'tok', QUIESCENCE_MS: '100',
+    SCROLLBACK: '1.5',
+  }));
+}
+
+test('VULN-002: a post-spawn failure must not orphan a PTY child', async () => {
+  const manager = bootWithPostSpawnThrow();
+  const before = liveBashPids();
+
+  assert.throws(() => manager.create({}), 'create() should still surface the failure');
+
+  await new Promise((r) => setTimeout(r, 400));
+  const leaked = liveBashPids().filter((p) => !before.includes(p));
+  const stillAlive = leaked.filter(isAlive);
+  reap(leaked);
+
+  assert.equal(manager.list().length, 0, 'no record should be registered after a failed create');
+  assert.equal(stillAlive.length, 0,
+    `failed create orphaned ${stillAlive.length} live PTY child(ren): [${stillAlive.join(',')}] — ` +
+    'the child was spawned before the owning record was registered and nothing reaped it');
+});
+
+test('VULN-002: the leak does not accumulate across repeated failures', async () => {
+  const manager = bootWithPostSpawnThrow();
+  const before = liveBashPids();
+
+  for (let i = 0; i < 3; i++) { try { manager.create({}); } catch {} }
+
+  await new Promise((r) => setTimeout(r, 500));
+  const leaked = liveBashPids().filter((p) => !before.includes(p));
+  const stillAlive = leaked.filter(isAlive);
+  reap(leaked);
+
+  assert.equal(stillAlive.length, 0,
+    `3 failed creates orphaned ${stillAlive.length} live child(ren): [${stillAlive.join(',')}] — leak scales with request count`);
 });

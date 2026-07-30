@@ -92,24 +92,36 @@ export class SessionManager {
       err.validProfiles = Object.keys(c.profiles);
       throw err;
     }
+    // Construct the TerminalModel BEFORE spawning: it is the one step here that
+    // validates its inputs and can throw, and forking a child only to discard it
+    // is the bug this ordering prevents (CWE-404).
+    const terminalModel = new TerminalModel({ cols: cols || p.cols, rows: rows || p.rows, scrollback: c.scrollback });
     const session = new Session({
       command: p.command, args: [...p.args], cwd: cwd || p.cwd,
       env: process.env, envScrub: p.envScrub, envSet: p.envSet,
       cols: cols || p.cols, rows: rows || p.rows, ringBytes: c.ringBytes,
     });
-    const terminalModel = new TerminalModel({ cols: cols || p.cols, rows: rows || p.rows, scrollback: c.scrollback });
-    session.on('data', (d) => terminalModel.write(d));
-    const record = {
-      id: session.id, session, terminalModel, adapter,
-      queue: new PromptQueue(), createdAt: Date.now(),
-      profile: name, dialogPolicy: p.dialogPolicy,
-    };
-    // Build the dialog handler over the record, then hand it to the detector so
-    // an auto-answered dialog keeps the session busy rather than surfacing.
-    const dialogHandler = makeDialogHandler(record);
-    record.detector = new StateDetector({ session, terminalModel, adapter, quiescenceMs: p.quiescenceMs, dialogHandler });
-    this._records.set(session.id, record);
-    return record;
+    // Everything past this point owns a live PTY child. The reorder above closes
+    // the known trigger; this guard closes the rest — any throw before the record
+    // is registered would otherwise leave a child that `list()` cannot see and
+    // `kill()` cannot reach.
+    try {
+      session.on('data', (d) => terminalModel.write(d));
+      const record = {
+        id: session.id, session, terminalModel, adapter,
+        queue: new PromptQueue(), createdAt: Date.now(),
+        profile: name, dialogPolicy: p.dialogPolicy,
+      };
+      // Build the dialog handler over the record, then hand it to the detector so
+      // an auto-answered dialog keeps the session busy rather than surfacing.
+      const dialogHandler = makeDialogHandler(record);
+      record.detector = new StateDetector({ session, terminalModel, adapter, quiescenceMs: p.quiescenceMs, dialogHandler });
+      this._records.set(session.id, record);
+      return record;
+    } catch (e) {
+      try { session.kill(); } catch { /* already dead — nothing to reap */ }
+      throw e;
+    }
   }
   get(id) { return this._records.get(id); }
   list() { return [...this._records.values()]; }
